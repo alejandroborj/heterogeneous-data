@@ -115,10 +115,10 @@ class PatchDataset(data.Dataset):
         
     def __getitem__(self, index):
         'Generates one sample of data'
-        x = self.scaler.transform(self.inputs[index].reshape(1, -1))
-        x = torch.from_numpy(x).float()
-        
-        return x[0], self.labels[index][0], self.case_ids[index]
+        # x = self.scaler.transform(self.inputs[index].reshape(1, -1)) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        # x = torch.from_numpy(x).float()
+        # return x[0], self.labels[index][0], self.case_ids[index]
+        return self.inputs[index], self.labels[index], self.case_ids[index]
 
 class TestPatchDataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
