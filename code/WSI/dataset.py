@@ -120,6 +120,26 @@ class PatchDataset(data.Dataset):
         # return x[0], self.labels[index][0], self.case_ids[index]
         return self.inputs[index], self.labels[index], self.case_ids[index]
 
+    def show_patch(self, patch_num):
+
+        import matplotlib.pyplot as plt
+
+        fig, ax = plt.subplots()
+
+        ex = self.__getitem__(patch_num)
+
+        if ex[0].size(dim=2) != 3:
+            im = ex[0].permute(2, 1, 0)
+
+        if ex[1][0] == 1:
+            ax.set_xlabel(f"Positive ID: {ex[2]}")
+
+        else:
+            ax.set_xlabel(f"Negative ID: {ex[2]}")
+
+        print("Number of samples: ", self.__len__())
+        ax.imshow(im)
+
 class TestPatchDataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
     def __init__(self, inputs, labels, scaler, case_ids, len_sizes):

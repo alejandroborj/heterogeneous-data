@@ -5,6 +5,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import torch.nn as nn
+import torchvision
 import random
 from tqdm import tqdm
 from glob import glob
@@ -204,3 +205,12 @@ def get_LC_inputs(mode, paths, ohe, dataReaders, verbose=False):
 def index_to_keep(array, condition):
     # condition -> np.full(6,-3)
     return np.unique(np.where(array != condition)[0])
+
+def normalize(X):
+  mean = [0.485, 0.456, 0.406] # Imagenet values
+  std = [0.229, 0.224, 0.225]
+
+  for i, input in enumerate(inputs):
+      inputs[i] = torchvision.transforms.Normalize(mean=mean, std=std)(input)
+
+  return inputs
