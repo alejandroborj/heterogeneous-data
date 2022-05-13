@@ -57,15 +57,11 @@ class Data_reader():
                 file_data = []
                 for format in self.formats:
                     for file in glob.glob(path + r"\*" + format):
-                        
-                        #print(file[-101:-65])
-                        #file_data += [[self.read_file(file, patch_size), self.check_class(file[-101:-65])]] # Adding class and tiled file
-
-                        if file[-47:-45]=="01": # Reading the ID diagnostic sample type 01 == Primary tumor
+                        if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"): # Reading the ID diagnostic sample type 01 == Primary tumor
                             file_data += [[self.read_file(file, patch_size),  [1, 0]]] # Reading data (1 => positive diagnosis, 0 => negative)
                         else:
                             file_data += [[self.read_file(file, patch_size), [0, 1]]]
-                self.data[dataset][case_id] = file_data # Adding the file data to the dictionary with key=>case_id
+                self.data[dataset][case_id] = file_data # Adding the file data to the dictionary with key => case_id
 
     def read_file(self, file, patch_size):
 
@@ -77,20 +73,23 @@ class Data_reader():
         tile_size=dict(width=patch_size, height=patch_size),
         tile_overlap=dict(x=0, y=0),
         format=large_image.tilesource.TILE_FORMAT_PIL
-        ):
-            patch = tile_info['tile']
+        ):  
+            if np.random.rand()>0.91: # We only take 1% of patches
+                pass
+            else:
+                patch = tile_info['tile']
 
-            # Changing from PIL RGBA image to RGB tensor
+                # Changing from PIL RGBA image to RGB tensor
 
-            patch_aux = Image.new("RGB", patch.size, (255, 255, 255))
-            patch_aux.paste(patch, mask=patch.split()[3]) # 3 is the alpha channel
+                patch_aux = Image.new("RGB", patch.size, (255, 255, 255))
+                patch_aux.paste(patch, mask=patch.split()[3]) # 3 is the alpha channel
 
-            patch = np.asarray(patch_aux)
+                patch = np.asarray(patch_aux)
 
-            avg = patch.mean(axis=0).mean(axis=0)
+                avg = patch.mean(axis=0).mean(axis=0)
 
-            if  avg[0]< 220 and avg[1]< 220 and avg[2]< 220 and patch.shape == (patch_size, patch_size, 3): # Checking if the patch is white and its a square tile
-                patches.append((patch/255).tolist())
+                if  avg[0]< 220 and avg[1]< 220 and avg[2]< 220 and patch.shape == (patch_size, patch_size, 3): # Checking if the patch is white and its a square tile
+                    patches.append((patch/255).tolist())
 
         return patches
 

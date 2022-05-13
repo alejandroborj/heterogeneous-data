@@ -9,6 +9,7 @@ SPLITS = 10
 
 data_path = r"C:\Users\Alejandro\Desktop\heterogeneous-data\data\gdc_download_20220427_144600.480657"
 case_id = os.listdir(data_path)
+case_id = case_id[:int(len(case_id)*0.3)] # 20% of the data as a test
 paths = [data_path + "\\" + case for case in case_id] # All case folders paths
 formats = [".svs"]
 
@@ -18,10 +19,11 @@ y = []
 for path in paths:
     for format in formats:
         for file in glob.glob(path + r"\*" + format):
-            if file[-47:-45]=="01":
+            if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"):
                 y.append([1, 0])
             else:
                 y.append([0, 1])
+
 y = np.asarray(y)
 
 kf = StratifiedKFold(
