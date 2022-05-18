@@ -22,12 +22,35 @@ def memory(n):
     import os
     process = psutil.Process(os.getpid())
     print(str(n) + " : " + str(process.memory_info()[0]/1024/1024/1024))
-    print(str(n) + " : " + str(psutil.virtual_memory()))
+    print(str(n) + " : " + str(psutil.virtual_memory().percent))
+
+
+# Returns size of a nested dictionary
+def get_size(obj, seen=None):
+    import sys
+    """Recursively finds size of objects"""
+    size = sys.getsizeof(obj)
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    # Important mark as seen *before* entering recursion to gracefully handle
+    # self-referential objects
+    seen.add(obj_id)
+    if isinstance(obj, dict):
+        size += sum([get_size(v, seen) for v in obj.values()])
+        size += sum([get_size(k, seen) for k in obj.keys()])
+    elif hasattr(obj, '__dict__'):
+        size += get_size(obj.__dict__, seen)
+    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+        size += sum([get_size(i, seen) for i in obj])
+    return size
 
 # Returns size of a given object in GB
 def mem_obj(obj):
     import sys
-    print(str(sys.getsizeof(obj)/1024/1024/1024))
+    print(str(get_size(obj)/1024/1024/1024))
 
 class Data_reader():
 # Override by subclasses
@@ -43,9 +66,6 @@ class Data_reader():
     def __del__(self):
         del self.data
     
-    # Search for all folder with name folder_name within the paths passed
-    # Read all files inside using the read_file method and create a list
-    # Finally, all file data is added to the data dictionary
     def read_data(self, paths, patch_size, dataset='train'): #  paths => paths for all data folders. dataset => train, test or val
 
         for path in tqdm(paths):
@@ -61,8 +81,12 @@ class Data_reader():
                             file_data += [[self.read_file(file, patch_size),  [1, 0]]] # Reading data (1 => positive diagnosis, 0 => negative)
                         else:
                             file_data += [[self.read_file(file, patch_size), [0, 1]]]
+                        
                 self.data[dataset][case_id] = file_data # Adding the file data to the dictionary with key => case_id
-
+                print("Size of data_reader object")
+                mem_obj(self.data)
+                memory(1)
+        
     def read_file(self, file, patch_size):
 
         ts = large_image.getTileSource(file)
@@ -73,8 +97,8 @@ class Data_reader():
         tile_size=dict(width=patch_size, height=patch_size),
         tile_overlap=dict(x=0, y=0),
         format=large_image.tilesource.TILE_FORMAT_PIL
-        ):  
-            if np.random.rand()>0.91: # We only take 1% of patches
+        ):
+            if np.random.rand()<0.92: # We only take 10% of patches
                 pass
             else:
                 patch = tile_info['tile']
@@ -108,15 +132,17 @@ class Data_reader():
 
     def data_reader_to_dataset(self, case_id):
         labels, inputs, case_ids = [], [], []
+
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+
+        normalize = torchvision.transforms.Normalize(mean=mean, std=std)
+
         for case in case_id:
             for image_count, image in enumerate(self.data['train'][case]):
                 for patch_count, patch in enumerate(self.data['train'][case][0][image_count]):
 
                     # Normalization acording to imagenet DB
-                    mean = [0.485, 0.456, 0.406]
-                    std = [0.229, 0.224, 0.225]
-
-                    normalize = torchvision.transforms.Normalize(mean=mean, std=std)
 
                     x = self.data['train'][case][image_count][0][patch_count]
                     x = normalize(torch.tensor(x).permute(2, 1, 0))
@@ -129,27 +155,4 @@ class Data_reader():
                                     labels=torch.tensor(labels),
                                     scaler=1,
                                     case_ids=case_ids)
-
-    # Return class for a given case
-
-    def check_class(self, id):
-
-        duct = ["Infiltrating duct carcinoma"] # This assumption must be checked
-
-        carc = ["Adenocarcinoma",
-        "Adenocarcinoma with mixed subtypes",
-        "Neuroendocrine carcinoma"]
-
-        clinical = pd.read_csv(r"C:\Users\Alejandro\Desktop\heterogeneous-data\data\clinical.tsv", delimiter="\t")
-
-        print(id, clinical['case_id'][0])
- 
-        if clinical.loc[clinical['case_id']==id]["primary_diagnosis"] in duct: # [1,0,0] => duct
-            return [1,0,0]
-
-        elif clinical.loc[clinical['case_id']==id]["primary_diagnosis"] in carc: # [0,1,0] => carc
-            return [0,1,0]
-
-        else:
-            return [0,0,1] # [0,0,1] => normal tissue
 
