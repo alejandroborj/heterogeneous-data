@@ -9,7 +9,7 @@ SPLITS = 10
 
 data_path = r"C:\Users\Alejandro\Desktop\heterogeneous-data\data\gdc_download_20220427_144600.480657"
 case_id = os.listdir(data_path)
-case_id = case_id[:int(len(case_id)*0.3)] # 20% of the data as a test
+case_id = case_id[:int(len(case_id))] # 20% of the data as a test
 paths = [data_path + "\\" + case for case in case_id] # All case folders paths
 formats = [".svs"]
 

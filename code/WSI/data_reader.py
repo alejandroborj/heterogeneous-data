@@ -66,39 +66,55 @@ class Data_reader():
     def __del__(self):
         del self.data
     
-    def read_data(self, paths, patch_size, dataset='train'): #  paths => paths for all data folders. dataset => train, test or val
+    def read_data(self, paths, patch_size): #  paths => paths for all data folders. dataset => train, test or val
 
+        inputs, labels, case_ids = [], [], []
         for path in tqdm(paths):
             case_id = os.path.split(path)[-1]
             if not os.path.exists(path) or len(os.listdir(path)) == 0:
                 print("Path does not exist")
                 pass
             else:
-                file_data = []
+                
                 for format in self.formats:
                     for file in glob.glob(path + r"\*" + format):
+                        patches = self.read_file(file, patch_size)
+                        inputs.extend(patches)
                         if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"): # Reading the ID diagnostic sample type 01 == Primary tumor
-                            file_data += [[self.read_file(file, patch_size),  [1, 0]]] # Reading data (1 => positive diagnosis, 0 => negative)
+                            labels.extend([[1, 0] for i in range(len(patches))]) # Reading data (1 => positive diagnosis, 0 => negative)
                         else:
-                            file_data += [[self.read_file(file, patch_size), [0, 1]]]
-                        
-                self.data[dataset][case_id] = file_data # Adding the file data to the dictionary with key => case_id
-                print("Size of data_reader object")
-                mem_obj(self.data)
+                            labels.extend([[0, 1] for i in range(len(patches))])
+                        case_ids.extend([case_id for i in range(len(patches))])
+                '''
+                print("Size of inputs")
+                mem_obj(inputs)
                 memory(1)
+                '''    
+        return dataset.PatchDataset(inputs=torch.tensor(inputs), 
+                    labels=torch.tensor(labels),
+                    scaler=1,
+                    case_ids=case_ids)
         
     def read_file(self, file, patch_size):
 
         ts = large_image.getTileSource(file)
         patches = []
 
+        max_patches = 1000
+        i = 0
+        
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+
+        normalize = torchvision.transforms.Normalize(mean=mean, std=std)
+
         for tile_info in ts.tileIterator(
-        scale=dict(magnification=10),
+        scale=dict(magnification=20),
         tile_size=dict(width=patch_size, height=patch_size),
         tile_overlap=dict(x=0, y=0),
         format=large_image.tilesource.TILE_FORMAT_PIL
         ):
-            if np.random.rand()<0.92: # We only take 10% of patches
+            if np.random.rand()<0.75:#i > max_patches: # # We only take 10% of patches
                 pass
             else:
                 patch = tile_info['tile']
@@ -112,8 +128,10 @@ class Data_reader():
 
                 avg = patch.mean(axis=0).mean(axis=0)
 
+                i += 1
+
                 if  avg[0]< 220 and avg[1]< 220 and avg[2]< 220 and patch.shape == (patch_size, patch_size, 3): # Checking if the patch is white and its a square tile
-                    patches.append((patch/255).tolist())
+                    patches.append(normalize(torch.tensor(patch/255).permute(2, 1, 0)).tolist())
 
         return patches
 

@@ -127,9 +127,10 @@ class PatchDataset(data.Dataset):
         fig, ax = plt.subplots()
 
         ex = self.__getitem__(patch_num)
-
         if ex[0].size(dim=2) != 3:
             im = ex[0].permute(2, 1, 0)
+        else:
+            print("error")
 
         if ex[1][0] == 1:
             ax.set_xlabel(f"Positive ID: {ex[2]}")
