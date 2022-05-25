@@ -102,12 +102,12 @@ class TestDatasetImgGen(data.Dataset):
 
 class PatchDataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
-    def __init__(self, inputs, labels, scaler, case_ids):
+    def __init__(self, inputs, labels):#, scaler, case_ids):
         'Initialization'
         self.inputs = inputs
         self.labels = labels
-        self.scaler = scaler
-        self.case_ids = case_ids
+        #self.scaler = scaler
+        #self.case_ids = case_ids
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -118,7 +118,7 @@ class PatchDataset(data.Dataset):
         # x = self.scaler.transform(self.inputs[index].reshape(1, -1)) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         # x = torch.from_numpy(x).float()
         # return x[0], self.labels[index][0], self.case_ids[index]
-        return self.inputs[index], self.labels[index], self.case_ids[index]
+        return self.inputs[index], self.labels[index]#, self.case_ids[index]
 
     def show_patch(self, patch_num):
 

@@ -9,6 +9,9 @@ import torch
 import torchvision.transforms as torchvision
 from PIL import Image
 
+import lmdb
+import pickle
+
 import dataset
 
 ## In order to fix .dll openslide bug a path for said file is provided
@@ -23,7 +26,6 @@ def memory(n):
     process = psutil.Process(os.getpid())
     print(str(n) + " : " + str(process.memory_info()[0]/1024/1024/1024))
     print(str(n) + " : " + str(psutil.virtual_memory().percent))
-
 
 # Returns size of a nested dictionary
 def get_size(obj, seen=None):
@@ -66,7 +68,7 @@ class Data_reader():
     def __del__(self):
         del self.data
     
-    def read_data(self, paths, patch_size): #  paths => paths for all data folders. dataset => train, test or val
+    def read_data(self, paths, patch_size, name): #  paths => paths for all data folders. dataset => train, test or val
 
         inputs, labels, case_ids = [], [], []
         for path in tqdm(paths):
@@ -75,46 +77,31 @@ class Data_reader():
                 print("Path does not exist")
                 pass
             else:
-                
                 for format in self.formats:
                     for file in glob.glob(path + r"\*" + format):
                         patches = self.read_file(file, patch_size)
                         inputs.extend(patches)
                         if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"): # Reading the ID diagnostic sample type 01 == Primary tumor
-                            labels.extend([[1, 0] for i in range(len(patches))]) # Reading data (1 => positive diagnosis, 0 => negative)
+                            labels.extend([[1, 0] for i in range(len(patches))]) # Reading data (1,0 => positive diagnosis, 0, 1 => negative)
                         else:
                             labels.extend([[0, 1] for i in range(len(patches))])
                         case_ids.extend([case_id for i in range(len(patches))])
-                '''
-                print("Size of inputs")
-                mem_obj(inputs)
-                memory(1)
-                '''    
-        return dataset.PatchDataset(inputs=torch.tensor(inputs), 
-                    labels=torch.tensor(labels),
-                    scaler=1,
-                    case_ids=case_ids)
-        
+
+        store_lmdb(np.asarray(inputs, dtype=np.uint8), np.array(labels, dtype=np.uint8), case_ids, name)
+                    
+
     def read_file(self, file, patch_size):
 
         ts = large_image.getTileSource(file)
         patches = []
-
-        max_patches = 1000
-        i = 0
         
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-
-        normalize = torchvision.transforms.Normalize(mean=mean, std=std)
-
         for tile_info in ts.tileIterator(
         scale=dict(magnification=20),
         tile_size=dict(width=patch_size, height=patch_size),
         tile_overlap=dict(x=0, y=0),
         format=large_image.tilesource.TILE_FORMAT_PIL
         ):
-            if np.random.rand()<0.75:#i > max_patches: # # We only take 10% of patches
+            if np.random.rand()<0: # We take 100% of patches
                 pass
             else:
                 patch = tile_info['tile']
@@ -124,15 +111,12 @@ class Data_reader():
                 patch_aux = Image.new("RGB", patch.size, (255, 255, 255))
                 patch_aux.paste(patch, mask=patch.split()[3]) # 3 is the alpha channel
 
-                patch = np.asarray(patch_aux)
+                patch = np.asarray(patch_aux, dtype = np.uint8)
 
                 avg = patch.mean(axis=0).mean(axis=0)
 
-                i += 1
-
                 if  avg[0]< 220 and avg[1]< 220 and avg[2]< 220 and patch.shape == (patch_size, patch_size, 3): # Checking if the patch is white and its a square tile
-                    patches.append(normalize(torch.tensor(patch/255).permute(2, 1, 0)).tolist())
-
+                    patches.append(patch)
         return patches
 
     # Return a random data value for a case (if there are multiple)
@@ -146,31 +130,53 @@ class Data_reader():
             print("Error, {} or {} not present in data, returning None".format(mode, case_id))
         return input_data
 
-    # Changes from data_reader data to data_set 
+def store_lmdb(images, labels, case_ids, name):
+    """ Stores multiple images to a LMDB.
+        Parameters:
+        ---------------
+        images      list of image array, (512, 512, 3) to be stored
+        labels      image labels
+    """
+    #map_size = images[0].nbytes * 100 * len(images)
 
-    def data_reader_to_dataset(self, case_id):
-        labels, inputs, case_ids = [], [], []
+    #print(len(images))
+    #print(images[0].nbytes)
+    #map_size = 10*(images[0].nbytes)*len(images)# int((len(images)+200) * 3 * 512**2) # 10000 patches per slide cota sup, 3 channels, 512 Image size,
+    map_size = int(1.5*(len(images)) * 3 * 512**2)
+    print(map_size/1024/1024/1024)
 
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
+    # Create a new LMDB environment
+    env = lmdb.open(f"C:/Users/Alejandro/Desktop/heterogeneous-data/data/patches/{name}", map_size=map_size)
 
-        normalize = torchvision.transforms.Normalize(mean=mean, std=std)
+    # Start a new write transaction
+    with env.begin(write=True) as txn:
+        for id, image in enumerate(images):
+            # All key-value pairs need to be strings
+            txn.put(('X_'+case_ids[id]+'_'+str(id)).encode("ascii"), images[id])
+            txn.put(('y_'+str(id)).encode("ascii"), labels[id])
+                 
+    env.close()
 
-        for case in case_id:
-            for image_count, image in enumerate(self.data['train'][case]):
-                for patch_count, patch in enumerate(self.data['train'][case][0][image_count]):
 
-                    # Normalization acording to imagenet DB
+def read_lmdb(filename):
+    print('Read lmdb')
 
-                    x = self.data['train'][case][image_count][0][patch_count]
-                    x = normalize(torch.tensor(x).permute(2, 1, 0))
+    lmdb_env = lmdb.open(filename)
+    #lmdb_txn = lmdb_env.begin()
+    
+    X, y, labels = [], [], []
+    n_counter=0
 
-                    labels.append(self.data['train'][case][image_count][1])
-                    inputs.append(x)
-                    case_ids.append(case)
+    with lmdb_env.begin() as lmdb_txn:
+        with lmdb_txn.cursor() as lmdb_cursor:
+            for key, value in lmdb_cursor:
+                if(f'X'.encode("ascii") in key):
+                    X.append(np.frombuffer(value, dtype=np.uint8))
+                if(f'y'.encode("ascii") in key):
+                    y.append(np.frombuffer(value, dtype=np.uint8))
+                    labels.append(key[2:])
+                n_counter+=1
 
-        return dataset.PatchDataset(inputs=torch.stack(inputs), 
-                                    labels=torch.tensor(labels),
-                                    scaler=1,
-                                    case_ids=case_ids)
+    lmdb_env.close()
 
+    return X, y, n_counter, labels
