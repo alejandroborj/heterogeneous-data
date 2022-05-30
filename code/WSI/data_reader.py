@@ -170,9 +170,9 @@ def read_lmdb(filename):
     with lmdb_env.begin() as lmdb_txn:
         with lmdb_txn.cursor() as lmdb_cursor:
             for key, value in lmdb_cursor:
-                if(f'X'.encode("ascii") in key):
-                    X.append(np.frombuffer(value, dtype=np.uint8))
-                if(f'y'.encode("ascii") in key):
+                if(f'X'.encode("ascii") in key[:2]):
+                    X.append(np.frombuffer(value, dtype=np.uint8).reshape(512, 512, 3))
+                if(f'y'.encode("ascii") in key[:2]):
                     y.append(np.frombuffer(value, dtype=np.uint8))
                     labels.append(key[2:])
                 n_counter+=1
