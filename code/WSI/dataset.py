@@ -102,12 +102,12 @@ class TestDatasetImgGen(data.Dataset):
 
 class PatchDataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
-    def __init__(self, inputs, labels):#, scaler, case_ids):
+    def __init__(self, inputs, labels, case_ids):#, scaler, case_ids):
         'Initialization'
         self.inputs = inputs
         self.labels = labels
         #self.scaler = scaler
-        #self.case_ids = case_ids
+        self.case_ids = case_ids
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -140,32 +140,3 @@ class PatchDataset(data.Dataset):
 
         print("Number of samples: ", self.__len__())
         ax.imshow(im)
-
-class TestPatchDataset(data.Dataset):
-    'Characterizes a dataset for PyTorch'
-    def __init__(self, inputs, labels, scaler, case_ids, len_sizes):
-        'Initialization'
-        self.inputs = inputs
-        self.labels = labels
-        self.scaler = scaler
-        self.case_ids = case_ids
-        self.len_size = len_sizes
-        self.index0 = 0
-        self.index1 = len_sizes[0]
-    def __len__(self):
-        'Denotes the total number of samples'
-        return len(self.case_ids)
-        
-    def __getitem__(self, index):
-        'Generates one sample of data'
-
-        x = self.inputs[self.index0:self.index1]
-        y = self.labels[self.index0]
-
-        x = torch.from_numpy(x).float()
-        self.index0 = self.index1
-        if index+1 < len(self.len_size):
-            self.index1 = self.index0+self.len_size[index+1]
-        
-        return x, y, self.case_ids[index]
-

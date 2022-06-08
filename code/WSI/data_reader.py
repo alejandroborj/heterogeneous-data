@@ -82,8 +82,10 @@ class Data_reader():
                         patches = self.read_file(file, patch_size)
                         inputs.extend(patches)
                         if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"): # Reading the ID diagnostic sample type 01 == Primary tumor
+                            print("Positive ", file," ", file[-51:-49])
                             labels.extend([[1, 0] for i in range(len(patches))]) # Reading data (1,0 => positive diagnosis, 0, 1 => negative)
                         else:
+                            print("Negative ", file," ", file[-51:-49])
                             labels.extend([[0, 1] for i in range(len(patches))])
                         case_ids.extend([case_id for i in range(len(patches))])
 
@@ -142,7 +144,8 @@ def store_lmdb(images, labels, case_ids, name):
     #print(len(images))
     #print(images[0].nbytes)
     #map_size = 10*(images[0].nbytes)*len(images)# int((len(images)+200) * 3 * 512**2) # 10000 patches per slide cota sup, 3 channels, 512 Image size,
-    map_size = int(1.5*(len(images)) * 3 * 512**2)
+    #map_size = int(1.5*(len(images)) * 3 * 512**2)
+    map_size = int (10000*3*512**2)
     print(map_size/1024/1024/1024)
 
     # Create a new LMDB environment
@@ -154,6 +157,7 @@ def store_lmdb(images, labels, case_ids, name):
             # All key-value pairs need to be strings
             txn.put(('X_'+case_ids[id]+'_'+str(id)).encode("ascii"), images[id])
             txn.put(('y_'+str(id)).encode("ascii"), labels[id])
+        print(len(images))
                  
     env.close()
 
@@ -163,20 +167,29 @@ def read_lmdb(filename):
 
     lmdb_env = lmdb.open(filename)
     #lmdb_txn = lmdb_env.begin()
-    
-    X, y, labels = [], [], []
-    n_counter=0
+
+    X, y, ids_X, ids_y = [], [], [], []
+
+    n_counter = 0
 
     with lmdb_env.begin() as lmdb_txn:
         with lmdb_txn.cursor() as lmdb_cursor:
             for key, value in lmdb_cursor:
                 if(f'X'.encode("ascii") in key[:2]):
                     X.append(np.frombuffer(value, dtype=np.uint8).reshape(512, 512, 3))
+                    ids_X.append(str(key.decode('unicode_escape')))
                 if(f'y'.encode("ascii") in key[:2]):
                     y.append(np.frombuffer(value, dtype=np.uint8))
-                    labels.append(key[2:])
+                    ids_y.append(str(key.decode('unicode_escape')))
                 n_counter+=1
 
     lmdb_env.close()
 
-    return X, y, n_counter, labels
+    # In order to obtain the correct order labels
+    X = sorted(zip(X, ids_X), key = lambda x: int(x[1][39:]))
+    y = sorted(zip(y, ids_y), key = lambda x: int(x[1][2:]))
+
+    X, ids_X = zip(*X)
+    y, ids_y = zip(*y)
+
+    return X, y, n_counter, ids_X # X, y, N(data) and case_ids
