@@ -4,25 +4,35 @@ from sklearn.model_selection import StratifiedKFold
 import glob
 import numpy as np
 
-
 SPLITS = 10
 
-data_path = r"C:\Users\Alejandro\Desktop\heterogeneous-data\data\gdc_download_20220427_144600.480657"
-case_id = os.listdir(data_path)
-case_id = case_id[:int(len(case_id))] # 20% of the data as a test
-paths = [data_path + "\\" + case for case in case_id] # All case folders paths
+data_path = r"C:\Users\Alejandro\Desktop\heterogeneous-data\data\WSI\gdc_download_20220427_144600.480657"
+image_id = os.listdir(data_path)
+image_id = image_id[:int(len(image_id))] # 20% of the data as a test
+paths = [data_path + "\\" + case for case in image_id] # All case folders paths
 formats = [".svs"]
-
-X = case_id
-y = []
+case_id = []
+labels = []
 
 for path in paths:
-    for format in formats:
-        for file in glob.glob(path + r"\*" + format):
-            if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"):
-                y.append([1, 0])
-            else:
-                y.append([0, 1])
+    file_id = os.path.split(path)[-1]
+    if not os.path.exists(path) or len(os.listdir(path)) == 0:
+        print("Path does not exist")
+        pass
+    else:
+        for format in formats:
+            for file in glob.glob(path + r"\*" + format):
+                if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"):
+                    labels.append([1, 0])
+                else:
+                    labels.append([0, 1])
+            case_id.append(file[-64:-52])
+
+#%%
+X = case_id
+y = labels
+
+print(X, y)
 
 y = np.asarray(y)
 

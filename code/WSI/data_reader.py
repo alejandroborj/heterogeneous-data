@@ -72,7 +72,7 @@ class Data_reader():
 
         inputs, labels, case_ids = [], [], []
         for path in tqdm(paths):
-            case_id = os.path.split(path)[-1]
+            file_id = os.path.split(path)[-1]
             if not os.path.exists(path) or len(os.listdir(path)) == 0:
                 print("Path does not exist")
                 pass
@@ -82,11 +82,12 @@ class Data_reader():
                         patches = self.read_file(file, patch_size)
                         inputs.extend(patches)
                         if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"): # Reading the ID diagnostic sample type 01 == Primary tumor
-                            print("Positive ", file," ", file[-51:-49])
+                            #print("Positive ", file," ", file[-51:-49])
                             labels.extend([[1, 0] for i in range(len(patches))]) # Reading data (1,0 => positive diagnosis, 0, 1 => negative)
                         else:
-                            print("Negative ", file," ", file[-51:-49])
+                            #print("Negative ", file," ", file[-51:-49])
                             labels.extend([[0, 1] for i in range(len(patches))])
+                        case_id = file[-64:-52]
                         case_ids.extend([case_id for i in range(len(patches))])
 
         store_lmdb(np.asarray(inputs, dtype=np.uint8), np.array(labels, dtype=np.uint8), case_ids, name)
@@ -149,7 +150,7 @@ def store_lmdb(images, labels, case_ids, name):
     print(map_size/1024/1024/1024)
 
     # Create a new LMDB environment
-    env = lmdb.open(f"C:/Users/Alejandro/Desktop/heterogeneous-data/data/patches/{name}", map_size=map_size)
+    env = lmdb.open(f"C:/Users/Alejandro/Desktop/heterogeneous-data/data/WSI/patches/{name}", map_size=map_size)
 
     # Start a new write transaction
     with env.begin(write=True) as txn:
