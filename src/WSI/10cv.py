@@ -6,7 +6,7 @@ import numpy as np
 
 SPLITS = 10
 
-data_path = r"C:\Users\Alejandro\Desktop\heterogeneous-data\data\WSI\gdc_download_20220427_144600.480657"
+data_path = "C:/Users/Alejandro/Desktop/heterogeneous-data/data/WSI/gdc_download_20220613_151352.488411"
 image_id = os.listdir(data_path)
 image_id = image_id[:int(len(image_id))] # 20% of the data as a test
 paths = [data_path + "\\" + case for case in image_id] # All case folders paths
@@ -27,6 +27,13 @@ for path in paths:
                 else:
                     labels.append([0, 1])
             case_id.append(file[-64:-52])
+
+print(len(np.unique(case_id)))
+print(len(case_id))
+
+print(sum([1 if i[0]==1 else 0 for i in labels]))
+print(len(labels))
+print(sum([1 if i[0]==1 else 0 for i in labels])/len(labels))
 
 #%%
 X = case_id

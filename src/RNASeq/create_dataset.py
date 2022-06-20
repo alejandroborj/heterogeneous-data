@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(description='Create dataset \
 parser.add_argument('--name', dest='csv_name', type=str, default='dataset',
                     help="name for the csv to be saved. Don't need to put the \
                           extension")
-parser.add_argument('--json', dest='json_name', type=str, default='metadata',
+parser.add_argument('--json', dest='json_name', type=str, default='metadata.cart.2022-06-13',
                     help="name for the metadata in json format. Don't need to \
                           put the extension")
 parser.add_argument('--clinical', dest='clinical_name', type=str,
@@ -45,7 +45,7 @@ def check_label(row, data, sample):
     """Check the label of the ID."""
     submitter_id = get_submitter_id(row['case_id'], data)
     print(submitter_id)
-    count_name = submitter_id.split('_')[0] + '.htseq.counts.gz'
+    count_name = submitter_id.split('_')[0]# + '.htseq.counts.gz'
     label = sample['Sample Type'].loc[sample['File Name'] == count_name]
     return label.values[0]
 
@@ -54,18 +54,19 @@ def check_count_name(row, data):
     """Check count name of the ID."""
     submitter_id = get_submitter_id(row['case_id'], data)
     print(submitter_id)
-    count_name = submitter_id.split('_')[0] + '.htseq.counts'
+    count_name = submitter_id.split('_')[0]# + '.htseq.counts'
     return count_name
 
 
-clinical = pd.read_csv(args.clinical_name + '.tsv', sep='\t')
+clinical = pd.read_csv('C:/Users/Alejandro/Desktop/heterogeneous-data/data/RNASeq/' + args.clinical_name + '.tsv', sep='\t')
 
-with open(args.json_name + '.json') as json_file:
+with open('C:/Users/Alejandro/Desktop/heterogeneous-data/data/RNASeq/' + args.json_name + '.json') as json_file:
     data = json.load(json_file)
 
 dataset = clinical
 dataset['Count_Name'] = dataset.apply(lambda row: check_count_name(row, data),
                                       axis=1)
+
 names_to_drop = []
 labels = []
 runs = []
@@ -74,7 +75,9 @@ for label, name, stage in zip(dataset['primary_diagnosis'].values,
                               dataset['Count_Name'].values,
                               dataset['tumor_stage'].values):
     print(name)
-    paths = glob.glob('counts/*/'+str(name))
+
+    paths = glob.glob('C:/Users/Alejandro/Desktop/heterogeneous-data/data/RNASeq/gdc_download_20220610_103056.337655/'+str(name))
+    print(paths)
     type_ = paths[0].split('/')[1].split('-')[-1]
     if type_[0] == '1':
         labels.append('healthy')
