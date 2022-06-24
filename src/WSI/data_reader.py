@@ -15,7 +15,7 @@ import pickle
 import dataset
 
 ## In order to fix .dll openslide bug a path for said file is provided
-os.environ['PATH'] = r"C:\Users\Alejandro\Downloads\openslide-win64-20171122\openslide-win64-20171122\bin" + ";" + os.environ['PATH']  #libvips-bin-path is where you save the libvips files
+os.environ['PATH'] = r"C:\Users\Alejandro\Documents\openslide-win64-20171122\bin" + ";" + os.environ['PATH']  #libvips-bin-path is where you save the libvips files
 import openslide
 import large_image
 
@@ -69,8 +69,13 @@ class Data_reader():
         del self.data
     
     def read_data(self, paths, patch_size, name): #  paths => paths for all data folders. dataset => train, test or val
-
-        inputs, labels, case_ids = [], [], []
+        """
+        [1,0,0] => NEGATIVE
+        [0,1,0] => COAD
+        [0,0,1] => READ
+        """
+        sample = pd.read_csv("D:/data/WSI/COAD/sample.tsv", sep="\t") # Sample data for all tissue samples in COAD-READ
+        inputs, labels, sample_ids = [], [], []
         for path in tqdm(paths):
             file_id = os.path.split(path)[-1]
             if not os.path.exists(path) or len(os.listdir(path)) == 0:
@@ -80,17 +85,28 @@ class Data_reader():
                 for format in self.formats:
                     for file in glob.glob(path + r"\*" + format):
                         patches = self.read_file(file, patch_size)
+                        sample_id = file[-64:-48]
                         inputs.extend(patches)
-                        if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"): # Reading the ID diagnostic sample type 01 == Primary tumor
-                            #print("Positive ", file," ", file[-51:-49])
-                            labels.extend([[1, 0] for i in range(len(patches))]) # Reading data (1,0 => positive diagnosis, 0, 1 => negative)
-                        else:
-                            #print("Negative ", file," ", file[-51:-49])
-                            labels.extend([[0, 1] for i in range(len(patches))])
-                        case_id = file[-64:-52]
-                        case_ids.extend([case_id for i in range(len(patches))])
+                        if file[-51:-49] == "01": # Reading the ID diagnostic sample type 01 == Primary tumor
 
-        store_lmdb(np.asarray(inputs, dtype=np.uint8), np.array(labels, dtype=np.uint8), case_ids, name)
+                            if sample.loc[sample['sample_submitter_id'] == sample_id]['project_id'].iloc[0] == "TCGA-READ":
+                                #print("READ ", sample_id)
+                                labels.extend([[0, 0, 1] for i in range(len(patches))]) 
+
+                            if sample.loc[sample['sample_submitter_id'] == sample_id]['project_id'].iloc[0] == "TCGA-COAD":
+                                #print("COAD ", sample_id)
+                                labels.extend([[0, 1, 0] for i in range(len(patches))])
+
+                        elif file[-51:-49] == "11":
+                            #print("Negative ", sample_id)
+                            labels.extend([[1, 0, 0] for i in range(len(patches))])
+
+                        else:
+                            print("ERROR, SAMPLE IS NOT PRIMARY TUMOR OR TISSUE NORMAL ", sample_id)
+                            break
+                        sample_ids.extend([sample_id for i in range(len(patches))])
+
+        store_lmdb(np.asarray(inputs, dtype=np.uint8), np.array(labels, dtype=np.uint8), sample_ids, name)
                     
 
     def read_file(self, file, patch_size):
@@ -104,7 +120,7 @@ class Data_reader():
         tile_overlap=dict(x=0, y=0),
         format=large_image.tilesource.TILE_FORMAT_PIL
         ):
-            if np.random.rand()<0: # We take 100% of patches
+            if np.random.rand()<0: # We take 1% of patches
                 pass
             else:
                 patch = tile_info['tile']
@@ -146,11 +162,11 @@ def store_lmdb(images, labels, case_ids, name):
     #print(images[0].nbytes)
     #map_size = 10*(images[0].nbytes)*len(images)# int((len(images)+200) * 3 * 512**2) # 10000 patches per slide cota sup, 3 channels, 512 Image size,
     #map_size = int(1.5*(len(images)) * 3 * 512**2)
-    map_size = int (10000*3*512**2)
+    map_size = 30*(1024**3)#int(2*len(images)*3*512**2)
     print(map_size/1024/1024/1024)
 
     # Create a new LMDB environment
-    env = lmdb.open(f"C:/Users/Alejandro/Desktop/heterogeneous-data/data/WSI/patches/{name}", map_size=map_size)
+    env = lmdb.open(f"D:/data/WSI/COAD/patches/{name}", map_size=map_size)
 
     # Start a new write transaction
     with env.begin(write=True) as txn:
@@ -178,16 +194,16 @@ def read_lmdb(filename):
             for key, value in lmdb_cursor:
                 if(f'X'.encode("ascii") in key[:2]):
                     X.append(np.frombuffer(value, dtype=np.uint8).reshape(512, 512, 3))
-                    ids_X.append(str(key.decode('unicode_escape')))
+                    ids_X.append(str(key.decode('ascii')))
                 if(f'y'.encode("ascii") in key[:2]):
                     y.append(np.frombuffer(value, dtype=np.uint8))
-                    ids_y.append(str(key.decode('unicode_escape')))
+                    ids_y.append(str(key.decode('ascii')))
                 n_counter+=1
 
     lmdb_env.close()
 
     # In order to obtain the correct order labels
-    X = sorted(zip(X, ids_X), key = lambda x: int(x[1][39:]))
+    X = sorted(zip(X, ids_X), key = lambda x: int(x[1][19:]))
     y = sorted(zip(y, ids_y), key = lambda x: int(x[1][2:]))
 
     X, ids_X = zip(*X)
