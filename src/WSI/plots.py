@@ -9,6 +9,26 @@ import seaborn as sn
 Code used to get plots for confusion matrices and learning curve
 
 """
+def learning_curve_train(NAME):
+  fig, axs = plt.subplots(2, figsize = (7, 6))
+
+  acc_df = pd.read_csv(f"C:\\Users\\Alejandro\\Desktop\\heterogeneous-data\\results\\WSI\\log\\model_{NAME}.log")
+  acc_df.columns = ["MODEL_NAME", "TIME", "ACC", "LOSS", "CONF_M", "AUC",
+                     "VAL_ACC", "VAL_LOSS", "VAL_CONF_M", "VAL_AUC"]
+
+  fig, axs = plt.subplots(2, figsize=(5,7))
+
+  axs[0].legend("MODEL_NAME", loc=2)
+
+  acc_df.plot(y="ACC", ax=axs[0])
+  acc_df.plot(y="VAL_ACC", ax=axs[0])
+
+  acc_df.plot(y="LOSS", ax=axs[1])
+  acc_df.plot(y="VAL_LOSS",ax=axs[1])
+
+  fig.show()
+  fig.savefig(f"C:\\Users\\Alejandro\\Desktop\\heterogeneous-data\\results\\WSI\\lc\\l_curve_{NAME}.pdf")
+
 
 def learning_curve(direc, MODEL_NAMES):
     fig, axs = plt.subplots(2, figsize = (7,8))

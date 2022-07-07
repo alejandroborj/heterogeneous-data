@@ -55,7 +55,6 @@ def mem_obj(obj):
     print(str(get_size(obj)/1024/1024/1024))
 
 class Data_reader():
-# Override by subclasses
 
     def __init__(self, folder_name, formats): # Initialization of Data_reader object
         self.folder_name = folder_name
@@ -70,9 +69,9 @@ class Data_reader():
     
     def read_data(self, paths, patch_size, name): #  paths => paths for all data folders. dataset => train, test or val
         """
-        [1,0,0] => NEGATIVE
-        [0,1,0] => COAD
-        [0,0,1] => READ
+        [1, 0, 0] => NEGATIVE
+        [0, 1, 0] => COAD
+        [0, 0, 1] => READ
         """
         sample = pd.read_csv("D:/data/WSI/COAD/sample.tsv", sep="\t") # Sample data for all tissue samples in COAD-READ
         inputs, labels, sample_ids = [], [], []
@@ -106,21 +105,22 @@ class Data_reader():
                             break
                         sample_ids.extend([sample_id for i in range(len(patches))])
 
+        #print(len(sample_ids))
         store_lmdb(np.asarray(inputs, dtype=np.uint8), np.array(labels, dtype=np.uint8), sample_ids, name)
                     
-
     def read_file(self, file, patch_size):
 
         ts = large_image.getTileSource(file)
         patches = []
-        
-        for tile_info in ts.tileIterator(
+
+        tile_iterator = ts.tileIterator(
         scale=dict(magnification=20),
         tile_size=dict(width=patch_size, height=patch_size),
         tile_overlap=dict(x=0, y=0),
-        format=large_image.tilesource.TILE_FORMAT_PIL
-        ):
-            if np.random.rand()<0: # We take 1% of patches
+        format=large_image.tilesource.TILE_FORMAT_PIL)
+        
+        for idx, tile_info in enumerate(sorted(tile_iterator, key=lambda k: random.random())):
+            if idx > 500: #np.random.rand()<0: # We take 1% of patches
                 pass
             else:
                 patch = tile_info['tile']
@@ -162,7 +162,7 @@ def store_lmdb(images, labels, case_ids, name):
     #print(images[0].nbytes)
     #map_size = 10*(images[0].nbytes)*len(images)# int((len(images)+200) * 3 * 512**2) # 10000 patches per slide cota sup, 3 channels, 512 Image size,
     #map_size = int(1.5*(len(images)) * 3 * 512**2)
-    map_size = 30*(1024**3)#int(2*len(images)*3*512**2)
+    map_size = 50*(1024**3)#int(2*len(images)*3*512**2)
     print(map_size/1024/1024/1024)
 
     # Create a new LMDB environment
@@ -174,16 +174,14 @@ def store_lmdb(images, labels, case_ids, name):
             # All key-value pairs need to be strings
             txn.put(('X_'+case_ids[id]+'_'+str(id)).encode("ascii"), images[id])
             txn.put(('y_'+str(id)).encode("ascii"), labels[id])
-        print(len(images))
+        #print(len(images))
                  
     env.close()
-
 
 def read_lmdb(filename):
     print('Read lmdb')
 
     lmdb_env = lmdb.open(filename)
-    #lmdb_txn = lmdb_env.begin()
 
     X, y, ids_X, ids_y = [], [], [], []
 
@@ -203,6 +201,7 @@ def read_lmdb(filename):
     lmdb_env.close()
 
     # In order to obtain the correct order labels
+    
     X = sorted(zip(X, ids_X), key = lambda x: int(x[1][19:]))
     y = sorted(zip(y, ids_y), key = lambda x: int(x[1][2:]))
 
