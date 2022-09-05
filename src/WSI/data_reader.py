@@ -56,8 +56,8 @@ def mem_obj(obj):
 
 class Data_reader():
 
-    def __init__(self, folder_name, formats): # Initialization of Data_reader object
-        self.folder_name = folder_name
+    def __init__(self, formats): # Initialization of Data_reader object
+        #self.folder_name = folder_name
         self.formats = formats # List of the different file format .svs in this case
         self.data = {} # Dictionary with 3 keys for train test and validation
         self.data['train'] = {}
@@ -69,43 +69,52 @@ class Data_reader():
     
     def read_data(self, paths, patch_size, name): #  paths => paths for all data folders. dataset => train, test or val
         """
-        [1, 0, 0] => NEGATIVE
-        [0, 1, 0] => COAD
-        [0, 0, 1] => READ
+        [1, 0] => NEGATIVE
+        [0, 1] => POSITIVE
         """
-        sample = pd.read_csv("D:/data/WSI/COAD/sample.tsv", sep="\t") # Sample data for all tissue samples in COAD-READ
+        sample = pd.read_csv("D:/data/WSI/GDC/sample.tsv", sep="\t") # Sample data for all tissue samples in COAD-READ
         inputs, labels, sample_ids = [], [], []
+
         for path in tqdm(paths):
             file_id = os.path.split(path)[-1]
-            if not os.path.exists(path) or len(os.listdir(path)) == 0:
-                print("Path does not exist")
+
+            if not os.path.exists(path):# or len(os.listdir(path)) == 0:
+                print("Path does not exist or empty ", path)
                 pass
+
+            elif "GTEx" in path:
+                sample_id = file_id[:-4]
+                file_id = sample_id
+                file = path
+                patches = self.read_file(file, patch_size)
+                #print("NEGATIVE: ", sample_id)
+                inputs.extend(patches)
+                labels.extend([[1, 0] for i in range(len(patches))])
+                sample_ids.extend([sample_id for i in range(len(patches))])
+                
+
             else:
                 for format in self.formats:
                     for file in glob.glob(path + r"\*" + format):
                         patches = self.read_file(file, patch_size)
-                        sample_id = file[-64:-48]
                         inputs.extend(patches)
+                        sample_id = file[-64:-48]
+
                         if file[-51:-49] == "01": # Reading the ID diagnostic sample type 01 == Primary tumor
-
-                            if sample.loc[sample['sample_submitter_id'] == sample_id]['project_id'].iloc[0] == "TCGA-READ":
-                                #print("READ ", sample_id)
-                                labels.extend([[0, 0, 1] for i in range(len(patches))]) 
-
-                            if sample.loc[sample['sample_submitter_id'] == sample_id]['project_id'].iloc[0] == "TCGA-COAD":
-                                #print("COAD ", sample_id)
-                                labels.extend([[0, 1, 0] for i in range(len(patches))])
+                            #print("POSITIVE: ", sample_id)
+                            labels.extend([[0, 1] for i in range(len(patches))])
 
                         elif file[-51:-49] == "11":
-                            #print("Negative ", sample_id)
-                            labels.extend([[1, 0, 0] for i in range(len(patches))])
+                            #print("NEGATIVE: ", sample_id)
+                            labels.extend([[1, 0] for i in range(len(patches))])
 
                         else:
-                            print("ERROR, SAMPLE IS NOT PRIMARY TUMOR OR TISSUE NORMAL ", sample_id)
+                            print("ERROR, SAMPLE IS NOT PRIMARY TUMOR OR TISSUE NORMAL: ", sample_id)
                             break
+
                         sample_ids.extend([sample_id for i in range(len(patches))])
 
-        #print(len(sample_ids))
+        print(len(sample_ids))
         store_lmdb(np.asarray(inputs, dtype=np.uint8), np.array(labels, dtype=np.uint8), sample_ids, name)
                     
     def read_file(self, file, patch_size):
@@ -120,6 +129,7 @@ class Data_reader():
         format=large_image.tilesource.TILE_FORMAT_PIL)
         
         for idx, tile_info in enumerate(sorted(tile_iterator, key=lambda k: random.random())):
+
             if idx > 500: #np.random.rand()<0: # We take 1% of patches
                 pass
             else:
@@ -134,7 +144,8 @@ class Data_reader():
 
                 avg = patch.mean(axis=0).mean(axis=0)
 
-                if  avg[0]< 220 and avg[1]< 220 and avg[2]< 220 and patch.shape == (patch_size, patch_size, 3): # Checking if the patch is white and its a square tile
+                if  avg[0]< 220 and avg[1]< 220 and avg[2]< 220 and patch.shape == (patch_size, patch_size, 3): 
+                    # Checking if the patch is white and its a square tile
                     patches.append(patch)
         return patches
 
@@ -160,13 +171,14 @@ def store_lmdb(images, labels, case_ids, name):
 
     #print(len(images))
     #print(images[0].nbytes)
-    #map_size = 10*(images[0].nbytes)*len(images)# int((len(images)+200) * 3 * 512**2) # 10000 patches per slide cota sup, 3 channels, 512 Image size,
+    #map_size = 10*(images[0].nbytes)*len(images)# int((len(images)+200) * 3 * 512**2) 
+    # 10000 patches per slide cota sup, 3 channels, 512 Image size,
     #map_size = int(1.5*(len(images)) * 3 * 512**2)
     map_size = 50*(1024**3)#int(2*len(images)*3*512**2)
     print(map_size/1024/1024/1024)
 
     # Create a new LMDB environment
-    env = lmdb.open(f"D:/data/WSI/COAD/patches/{name}", map_size=map_size)
+    env = lmdb.open(f"D:/data/WSI/patches/{name}", map_size=map_size)
 
     # Start a new write transaction
     with env.begin(write=True) as txn:
@@ -174,7 +186,7 @@ def store_lmdb(images, labels, case_ids, name):
             # All key-value pairs need to be strings
             txn.put(('X_'+case_ids[id]+'_'+str(id)).encode("ascii"), images[id])
             txn.put(('y_'+str(id)).encode("ascii"), labels[id])
-        #print(len(images))
+        print(len(images))
                  
     env.close()
 
@@ -201,10 +213,12 @@ def read_lmdb(filename):
     lmdb_env.close()
 
     # In order to obtain the correct order labels
-    
-    X = sorted(zip(X, ids_X), key = lambda x: int(x[1][19:]))
-    y = sorted(zip(y, ids_y), key = lambda x: int(x[1][2:]))
 
+    print(len(X))
+
+    X = sorted(zip(X, ids_X), key = lambda x: int(x[1].split("_")[-1]))
+    y = sorted(zip(y, ids_y), key = lambda x: int(x[1][2:]))
+    
     X, ids_X = zip(*X)
     y, ids_y = zip(*y)
 

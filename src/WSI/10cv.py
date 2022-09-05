@@ -3,15 +3,21 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedKFold
 import glob
 import numpy as np
+import os
 
 SPLITS = 10
+gdc_data_path = "D:/data/WSI/GDC/gdc_download_20220615_080352.004457"
+gtex_data_path = "D:/data/WSI/GTEx/PAAD"
+rna_wsi_cases = np.loadtxt("D:/data/rna_wsi_cases.txt", dtype=str)
+gdc_image_id = os.listdir(gdc_data_path)
+#gtex_image_id = os.listdir(gtex_data_path)
 
-data_path = "C:/Users/Alejandro/Desktop/heterogeneous-data/data/WSI/gdc_download_20220613_151352.488411"
-image_id = os.listdir(data_path)
-image_id = image_id[:int(len(image_id))] # 20% of the data as a test
-paths = [data_path + "\\" + case for case in image_id] # All case folders paths
+#gdc_image_id = gdc_image_id[:int(0.2*len(gdc_image_id))] # 20% of the data as a test
+#gtex_image_id = gtex_image_id[:int(0.2*len(gtex_image_id))] # 20% of the data as a test
+
+paths = [gdc_data_path + "/" + case for case in gdc_image_id] + [gtex_data_path] #[gtex_data_path + "/" + case for case in gtex_image_id] # All case folders paths
 formats = [".svs"]
-case_id = []
+case_ids = []
 labels = []
 
 for path in paths:
@@ -19,27 +25,47 @@ for path in paths:
     if not os.path.exists(path) or len(os.listdir(path)) == 0:
         print("Path does not exist")
         pass
+    
+    if "GTEx" in path:
+        for file in glob.glob(path + r"\*" + format):
+            sample_id = file.split("\\")[-1][-19:-4]
+            case_id = '-'.join(sample_id.split("-")[:2])
+            if '-'.join(sample_id.split("-")[:2]) in rna_wsi_cases:
+                print("NEGATIVE: ", sample_id)
+                labels.append([1, 0])
+                case_ids.append(case_id)
     else:
         for format in formats:
             for file in glob.glob(path + r"\*" + format):
-                if file[-51:-49] in ("01", "02", "03", "04" ,"05", "06", "07", "08", "09"):
-                    labels.append([1, 0])
-                else:
+                sample_id = file[-64:-48]
+                if file[-51:-49] == "01": # Reading the ID diagnostic sample type 01 == Primary tumor
+                    print("POSITIVE: ", sample_id)
                     labels.append([0, 1])
-            case_id.append(file[-64:-52])
+                    case_ids.append(sample_id[:-4])
+                elif file[-51:-49] == "11":
+                    print("NEGATIVE: ", sample_id)
+                    labels.append([1, 0])
+                    case_ids.append(sample_id[:-4])
+                else:
+                    print("ERROR, SAMPLE IS NOT PRIMARY TUMOR OR TISSUE NORMAL: ", sample_id)
+                    break
 
-print(len(np.unique(case_id)))
-print(len(case_id))
+unique_index = np.unique(case_ids, return_index=True)[1] 
+# Deleting all non unique instances the case labels for non unique 
+# instances are taken randomly for approximate estratification
 
-print(sum([1 if i[0]==1 else 0 for i in labels]))
-print(len(labels))
-print(sum([1 if i[0]==1 else 0 for i in labels])/len(labels))
+case_ids = [case_ids[i] for i in unique_index]
+labels = [labels[i] for i in unique_index]
+
+print("Ratio of samples:" , len(labels))
+print("Number of negatives: ", sum([1 if i[0]==1 else 0 for i in labels]))
+print("Ratio of negatives:" , sum([1 if i[0]==1 else 0 for i in labels])/len(labels))
 
 #%%
-X = case_id
+X = case_ids
 y = labels
 
-print(X, y)
+#print(X, y)
 
 y = np.asarray(y)
 
