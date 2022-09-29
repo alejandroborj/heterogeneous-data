@@ -8,8 +8,10 @@ import os
 SPLITS = 10
 gdc_data_path = "D:/data/WSI/GDC/gdc_download_20220615_080352.004457"
 gtex_data_path = "D:/data/WSI/GTEx/PAAD"
+
 rna_wsi_cases = np.loadtxt("D:/data/rna_wsi_cases.txt", dtype=str)
 gdc_image_id = os.listdir(gdc_data_path)
+
 #gtex_image_id = os.listdir(gtex_data_path)
 
 #gdc_image_id = gdc_image_id[:int(0.2*len(gdc_image_id))] # 20% of the data as a test
@@ -26,7 +28,7 @@ for path in paths:
         print("Path does not exist")
         pass
     
-    if "GTEx" in path:
+    if "GTEx" in path or "TCIA" in path:
         for file in glob.glob(path + r"\*" + format):
             sample_id = file.split("\\")[-1][-19:-4]
             case_id = '-'.join(sample_id.split("-")[:2])
@@ -103,5 +105,6 @@ for i in range(SPLITS):
     with open(f"C:\\Users\\Alejandro\\Desktop\\heterogeneous-data\\splits\\testsplit{i}.txt", "w") as f:
         for j in test_idx[i]:
             f.write(X[j]+"\n")
+
 
 # %%

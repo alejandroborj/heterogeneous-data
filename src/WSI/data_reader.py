@@ -72,8 +72,13 @@ class Data_reader():
         [1, 0] => NEGATIVE
         [0, 1] => POSITIVE
         """
-        sample = pd.read_csv("D:/data/WSI/GDC/sample.tsv", sep="\t") # Sample data for all tissue samples in COAD-READ
+        sample = pd.read_csv("D:/data/WSI/GDC/sample.tsv", sep="\t") # Sample data for all tissue samples
+        clinical = pd.read_csv('D:/data/WSI/GDC/clinical.tsv', sep='\t')
+        cohort = pd.read_csv('D:/data/WSI/TCIA/cohort.csv', sep=',')
+
         inputs, labels, sample_ids = [], [], []
+
+        iia = ['Stage I','Stage IA', 'Stage IB', 'Stage IIA']
 
         for path in tqdm(paths):
             file_id = os.path.split(path)[-1]
@@ -91,7 +96,25 @@ class Data_reader():
                 inputs.extend(patches)
                 labels.extend([[1, 0] for i in range(len(patches))])
                 sample_ids.extend([sample_id for i in range(len(patches))])
-                
+
+            elif "TCIA" in path:
+                slide_id = file_id[:-4]
+                sample_id = cohort[cohort["Slide_ID"] == slide_id]["Specimen_ID"].values[0]
+
+                file = path
+                patches = self.read_file(file, patch_size)
+
+                label = cohort[cohort["Specimen_ID"] == sample_id]["Specimen_Type"].values[0]
+
+                if label == "normal_tissue":
+                    print("NEGATIVE: ", sample_id)
+                    labels.extend([[1, 0] for i in range(len(patches))])
+                else:
+                    print("POSITIVE: ", sample_id)
+                    labels.extend([[0, 1] for i in range(len(patches))])
+
+                sample_ids.extend([sample_id for i in range(len(patches))])
+                inputs.extend(patches)
 
             else:
                 for format in self.formats:
@@ -99,7 +122,17 @@ class Data_reader():
                         patches = self.read_file(file, patch_size)
                         inputs.extend(patches)
                         sample_id = file[-64:-48]
+                        case_id = '-'.join(sample_id.split("-")[:-1])#[:-4]
+                        print(case_id)
 
+                        stage = clinical[clinical["case_submitter_id"] == case_id]["ajcc_pathologic_stage"].values[0]
+
+                        if stage in iia:
+                            labels.extend([[0, 1] for i in range(len(patches))]) #<iia
+                        else:
+                            labels.extend([[1, 0] for i in range(len(patches))]) #>iia
+                        
+                        '''
                         if file[-51:-49] == "01": # Reading the ID diagnostic sample type 01 == Primary tumor
                             #print("POSITIVE: ", sample_id)
                             labels.extend([[0, 1] for i in range(len(patches))])
@@ -111,6 +144,8 @@ class Data_reader():
                         else:
                             print("ERROR, SAMPLE IS NOT PRIMARY TUMOR OR TISSUE NORMAL: ", sample_id)
                             break
+                        
+                        '''
 
                         sample_ids.extend([sample_id for i in range(len(patches))])
 
@@ -121,6 +156,7 @@ class Data_reader():
 
         ts = large_image.getTileSource(file)
         patches = []
+        count=0
 
         tile_iterator = ts.tileIterator(
         scale=dict(magnification=20),
@@ -130,7 +166,7 @@ class Data_reader():
         
         for idx, tile_info in enumerate(sorted(tile_iterator, key=lambda k: random.random())):
 
-            if idx > 500: #np.random.rand()<0: # We take 1% of patches
+            if count > 500: #np.random.rand()<0:
                 pass
             else:
                 patch = tile_info['tile']
@@ -147,6 +183,7 @@ class Data_reader():
                 if  avg[0]< 220 and avg[1]< 220 and avg[2]< 220 and patch.shape == (patch_size, patch_size, 3): 
                     # Checking if the patch is white and its a square tile
                     patches.append(patch)
+                    count+=1
         return patches
 
     # Return a random data value for a case (if there are multiple)

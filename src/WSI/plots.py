@@ -144,6 +144,7 @@ def plot_conf(SPLIT_NAME, conf):
     ax.set_xlabel("Predicted class")
     ax.set_ylabel("True class")
 
+    
     fig.savefig(f"C:/Users/Alejandro/Desktop/heterogeneous-data/results/WSI/lc/conf_matrix_{SPLIT_NAME}.pdf")
 
 def plot_roc(SPLIT_NAME, roc):
