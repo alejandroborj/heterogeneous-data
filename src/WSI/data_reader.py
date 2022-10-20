@@ -107,10 +107,10 @@ class Data_reader():
                 label = cohort[cohort["Specimen_ID"] == sample_id]["Specimen_Type"].values[0]
 
                 if label == "normal_tissue":
-                    print("NEGATIVE: ", sample_id)
+                    #print("NEGATIVE: ", sample_id)
                     labels.extend([[1, 0] for i in range(len(patches))])
                 else:
-                    print("POSITIVE: ", sample_id)
+                    #print("POSITIVE: ", sample_id)
                     labels.extend([[0, 1] for i in range(len(patches))])
 
                 sample_ids.extend([sample_id for i in range(len(patches))])
@@ -123,7 +123,7 @@ class Data_reader():
                         inputs.extend(patches)
                         sample_id = file[-64:-48]
                         case_id = '-'.join(sample_id.split("-")[:-1])#[:-4]
-                        print(case_id)
+                        #print(case_id)
 
                         stage = clinical[clinical["case_submitter_id"] == case_id]["ajcc_pathologic_stage"].values[0]
 
@@ -166,7 +166,7 @@ class Data_reader():
         
         for idx, tile_info in enumerate(sorted(tile_iterator, key=lambda k: random.random())):
 
-            if count > 500: #np.random.rand()<0:
+            if count > 500:#100000: #np.random.rand()<0:
                 pass
             else:
                 patch = tile_info['tile']
@@ -240,7 +240,8 @@ def read_lmdb(filename):
         with lmdb_txn.cursor() as lmdb_cursor:
             for key, value in lmdb_cursor:
                 if(f'X'.encode("ascii") in key[:2]):
-                    X.append(np.frombuffer(value, dtype=np.uint8).reshape(512, 512, 3))
+                    im = np.frombuffer(value, dtype=np.uint8)
+                    X.append(im.reshape(int(np.ceil(len(im)/3)**0.5), -1, 3))
                     ids_X.append(str(key.decode('ascii')))
                 if(f'y'.encode("ascii") in key[:2]):
                     y.append(np.frombuffer(value, dtype=np.uint8))
@@ -260,3 +261,26 @@ def read_lmdb(filename):
     y, ids_y = zip(*y)
 
     return X, y, n_counter, ids_X # X, y, N(data) and case_ids
+
+def read_mhmc(path, split):
+    print('Read MHMC dataset')
+
+    inputs, labels, patch_ids = [], [], []
+
+    for slide_id in os.listdir(path+"/normal"):
+        if slide_id in split:
+            for file in os.listdir(path+"/normal/"+slide_id):
+                im = Image.open(path+"/normal/"+slide_id+"/"+file)
+                inputs.append(np.asarray(im))
+                labels.append(np.array([1,0]))
+                patch_ids.append(slide_id+"_"+file[:-4])
+
+    for slide_id in os.listdir(path+"/pdac"):
+        if slide_id in split:
+            for file in os.listdir(path+"/pdac/"+slide_id):
+                im = Image.open(path+"/pdac/"+slide_id+"/"+file)
+                inputs.append(np.asarray(im))
+                labels.append(np.array([0,1]))
+                patch_ids.append(slide_id+"_"+file[:-4])
+
+    return inputs, labels, patch_ids

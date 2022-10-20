@@ -108,3 +108,91 @@ for i in range(SPLITS):
 
 
 # %%
+
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
+import glob
+import numpy as np
+import os
+
+SPLITS = 10
+
+normal_data_path = "D:/data/WSI/MHMC/PDAC_TMA/normal"
+pdac_data_path = "D:/data/WSI/MHMC/PDAC_TMA/pdac"
+
+normal_image_id = os.listdir(normal_data_path)
+pdac_image_id = os.listdir(pdac_data_path)
+
+mhmc_image_id = normal_image_id + pdac_image_id
+
+files = [normal_data_path + "/" + image_id +".png" for image_id in normal_image_id] + [pdac_data_path + "/" + image_id +".png"  for image_id in pdac_image_id]
+case_ids = []
+labels = []
+
+for file in files:
+    file_id = file.split("/")[-1]
+    sample_id = "-".join(file_id.split("-"))[:-8]#[:-1])
+    case_id = sample_id #"_".join(file_id.split("_")[:-1])
+    if "pdac" in file: # Reading the ID diagnostic sample type 01 == Primary tumor
+        print("PDAC: ", sample_id)
+        labels.append([0, 1])
+        case_ids.append(case_id)
+
+    elif "normal" in file:
+        print("NORMAL: ", sample_id)
+        labels.append([1, 0])
+        case_ids.append(case_id)
+    else:
+        print("ERROR, SAMPLE IS NOT PRIMARY TUMOR OR TISSUE NORMAL: ", sample_id)
+        break
+
+unique_index = np.unique(case_ids, return_index=True)[1] 
+# Deleting all non unique instances the case labels for non unique 
+# instances are taken randomly for approximate estratification
+
+case_ids = [case_ids[i] for i in unique_index]
+labels = [labels[i] for i in unique_index]
+
+print("Number of samples:" , len(labels))
+print("Number of negatives: ", sum([1 if i[0]==1 else 0 for i in labels]))
+print("Ratio of negatives:" , sum([1 if i[0]==1 else 0 for i in labels])/len(labels))
+
+
+X = case_ids
+y = labels
+
+#print(X, y)
+
+y = np.asarray(y)
+
+kf = StratifiedKFold(
+    n_splits=SPLITS,  
+    shuffle=True)
+
+test_idx = []
+train_idx = []
+
+for i, (train_index, test_index) in enumerate(kf.split(X, y.argmax(1))):
+  train_idx.append(train_index)
+  test_idx.append(test_index)
+
+for j in range(SPLITS):
+    contador = 0 
+
+    split = [y[i] for i in train_idx[j]]
+
+    for label in split:
+        contador += label[0]
+
+    print(f"Proporcion positivos split {j+1}: ", contador/len(split))
+
+for i in range(SPLITS):
+    with open(f"C:\\Users\\Alejandro\\Desktop\\heterogeneous-data\\splits\\mhmc_trainsplit{i}.txt", "w") as f:
+        for j in train_idx[i]:
+            f.write(X[j]+"\n")
+
+    with open(f"C:\\Users\\Alejandro\\Desktop\\heterogeneous-data\\splits\\mhmc_testsplit{i}.txt", "w") as f:
+        for j in test_idx[i]:
+            f.write(X[j]+"\n")
+
+# %%

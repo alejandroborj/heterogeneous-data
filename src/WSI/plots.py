@@ -128,7 +128,7 @@ def plot_conf(SPLIT_NAME, conf):
 
     fig, ax = plt.subplots()
         
-    lab = ["Negative", "Positive"]
+    lab = ["Normal", "Tumor"]
 
     group_names = ['True Neg','False Pos','False Neg','True Pos']
     group_counts = ["{0:0.0f}".format(value) for value in conf.flatten()]
