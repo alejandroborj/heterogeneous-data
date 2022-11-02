@@ -124,6 +124,7 @@ class Data_reader():
                         sample_id = file[-64:-48]
                         case_id = '-'.join(sample_id.split("-")[:-1])#[:-4]
                         #print(case_id)
+                        '''
 
                         stage = clinical[clinical["case_submitter_id"] == case_id]["ajcc_pathologic_stage"].values[0]
 
@@ -144,8 +145,6 @@ class Data_reader():
                         else:
                             print("ERROR, SAMPLE IS NOT PRIMARY TUMOR OR TISSUE NORMAL: ", sample_id)
                             break
-                        
-                        '''
 
                         sample_ids.extend([sample_id for i in range(len(patches))])
 
