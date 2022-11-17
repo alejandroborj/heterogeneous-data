@@ -8,11 +8,14 @@ import pandas as pd
 import torch
 import torchvision.transforms as torchvision
 from PIL import Image
+import sys
 
 import lmdb
 import pickle
 
 import dataset
+
+from normalization import normalize_staining
 
 ## In order to fix .dll openslide bug a path for said file is provided
 os.environ['PATH'] = r"C:\Users\Alejandro\Documents\openslide-win64-20171122\bin" + ";" + os.environ['PATH']  #libvips-bin-path is where you save the libvips files
@@ -72,13 +75,15 @@ class Data_reader():
         [1, 0] => NEGATIVE
         [0, 1] => POSITIVE
         """
+        adenosqua = ["C3L-02606-03",
+        "C3L-02606-04",
+        "C3L-02606-01",
+        "C3L-02606-02"]
         sample = pd.read_csv("D:/data/WSI/GDC/sample.tsv", sep="\t") # Sample data for all tissue samples
         clinical = pd.read_csv('D:/data/WSI/GDC/clinical.tsv', sep='\t')
         cohort = pd.read_csv('D:/data/WSI/TCIA/cohort.csv', sep=',')
 
         inputs, labels, sample_ids = [], [], []
-
-        iia = ['Stage I','Stage IA', 'Stage IB', 'Stage IIA']
 
         for path in tqdm(paths):
             file_id = os.path.split(path)[-1]
@@ -88,6 +93,7 @@ class Data_reader():
                 pass
 
             elif "GTEx" in path:
+        
                 sample_id = file_id[:-4]
                 file_id = sample_id
                 file = path
@@ -97,6 +103,7 @@ class Data_reader():
                 labels.extend([[1, 0] for i in range(len(patches))])
                 sample_ids.extend([sample_id for i in range(len(patches))])
 
+
             elif "TCIA" in path:
                 slide_id = file_id[:-4]
                 sample_id = cohort[cohort["Slide_ID"] == slide_id]["Specimen_ID"].values[0]
@@ -105,16 +112,17 @@ class Data_reader():
                 patches = self.read_file(file, patch_size)
 
                 label = cohort[cohort["Specimen_ID"] == sample_id]["Specimen_Type"].values[0]
-
-                if label == "normal_tissue":
-                    #print("NEGATIVE: ", sample_id)
-                    labels.extend([[1, 0] for i in range(len(patches))])
-                else:
-                    #print("POSITIVE: ", sample_id)
-                    labels.extend([[0, 1] for i in range(len(patches))])
-
-                sample_ids.extend([sample_id for i in range(len(patches))])
-                inputs.extend(patches)
+                if sample_id not in adenosqua:
+                    if label == "normal_tissue":
+                        #print("NEGATIVE: ", sample_id)
+                        labels.extend([[1, 0] for i in range(len(patches))])
+                        sample_ids.extend([sample_id for i in range(len(patches))])
+                        inputs.extend(patches)
+                    else:
+                        #print("POSITIVE: ", sample_id)
+                        labels.extend([[0, 1] for i in range(len(patches))])
+                        sample_ids.extend([sample_id for i in range(len(patches))])
+                        inputs.extend(patches)
 
             else:
                 for format in self.formats:
@@ -123,17 +131,7 @@ class Data_reader():
                         inputs.extend(patches)
                         sample_id = file[-64:-48]
                         case_id = '-'.join(sample_id.split("-")[:-1])#[:-4]
-                        #print(case_id)
-                        '''
 
-                        stage = clinical[clinical["case_submitter_id"] == case_id]["ajcc_pathologic_stage"].values[0]
-
-                        if stage in iia:
-                            labels.extend([[0, 1] for i in range(len(patches))]) #<iia
-                        else:
-                            labels.extend([[1, 0] for i in range(len(patches))]) #>iia
-                        
-                        '''
                         if file[-51:-49] == "01": # Reading the ID diagnostic sample type 01 == Primary tumor
                             #print("POSITIVE: ", sample_id)
                             labels.extend([[0, 1] for i in range(len(patches))])
@@ -181,8 +179,12 @@ class Data_reader():
 
                 if  avg[0]< 220 and avg[1]< 220 and avg[2]< 220 and patch.shape == (patch_size, patch_size, 3): 
                     # Checking if the patch is white and its a square tile
-                    patches.append(patch)
-                    count+=1
+                    try:
+                        patches.append(normalize_staining(patch))
+                        count+=1
+                    except: 
+                        print("Error ", sys.exc_info()[0], "occurred.")
+
         return patches
 
     # Return a random data value for a case (if there are multiple)
